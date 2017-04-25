@@ -1,11 +1,11 @@
 #!/bin/sh
 
-PYTHONPATH=../../models/slim
+PYTHONPATH=~/tp_code/models/slim
 export PYTHONPATH
 
-DATASET_DIR=dataset/tensorflow
-TRAIN_DIR=train
-CHECKPOINT_PATH=checkpoints/inception_resnet_v2_2016_08_30.ckpt
+DATASET_DIR=~/datasets/kaggle-sealions/tensorflow
+TRAIN_DIR=~/train/kaggle-sealions/current
+CHECKPOINT_PATH=~/checkpoints/inception_resnet_v2_2016_08_30.ckpt
 python train_image_classifier.py \
     --train_dir=${TRAIN_DIR} \
     --dataset_dir=${DATASET_DIR} \
