@@ -15,4 +15,5 @@ python train_image_classifier.py \
     --checkpoint_path=${CHECKPOINT_PATH} \
     --checkpoint_exclude_scopes=InceptionResnetV2/Logits,InceptionResnetV2/AuxLogits \
     --optimizer=adam \
-    --learning_rate=.001
+    --learning_rate=.001 \
+    --save_summaries_secs=300

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-PYTHONPATH=../../models/slim python convert_sealions.py ~/datasets/kaggle-sealions
+PYTHONPATH=~/tp_code/models/slim python convert_sealions.py ~/datasets/kaggle-sealions
