@@ -31,7 +31,7 @@ slim = tf.contrib.slim
 
 _FILE_PATTERN = 'sealions_%s_*.tfrecord'
 
-SPLITS_TO_SIZES = {'train': 36479, 'validation': 4000}
+SPLITS_TO_SIZES = {'test': 40669, 'train': 36479, 'validation': 4000}
 
 _NUM_CLASSES = 17
 
@@ -72,6 +72,7 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
   keys_to_features = {
       'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
       'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg'),
+      'image/name': tf.FixedLenFeature((), tf.string, default_value=''),
       #'image/class/label': tf.FixedLenFeature(
       #    [], tf.int64, default_value=tf.zeros([], dtype=tf.int64)),
       'image/class/label': tf.VarLenFeature(tf.int64)
@@ -80,6 +81,7 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
   items_to_handlers = {
       'image': slim.tfexample_decoder.Image(shape=(256, 256, 3)),
       'label': slim.tfexample_decoder.Tensor('image/class/label'),
+      'name': slim.tfexample_decoder.Tensor('image/name'),
   }
 
   decoder = slim.tfexample_decoder.TFExampleDecoder(

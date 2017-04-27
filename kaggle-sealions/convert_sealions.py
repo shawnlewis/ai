@@ -49,6 +49,15 @@ def get_dataset_filename(dataset_dir, split_name, shard_id):
           split_name, shard_id, _NUM_SHARDS)
   return os.path.join(dataset_dir, output_filename)
 
+def image_to_tfexample(image_data, image_format, height, width, class_id, fname):
+  return tf.train.Example(features=tf.train.Features(feature={
+      'image/encoded': dataset_utils.bytes_feature(image_data),
+      'image/format': dataset_utils.bytes_feature(image_format),
+      'image/class/label': dataset_utils.int64_feature(class_id),
+      'image/height': dataset_utils.int64_feature(height),
+      'image/width': dataset_utils.int64_feature(width),
+      'image/name': dataset_utils.bytes_feature(fname),
+  }))
 
 def convert_dataset(split_name, filenames, fnames_to_class_ids, output_dir):
   """Converts the given filenames to a TFRecord dataset.
@@ -61,6 +70,9 @@ def convert_dataset(split_name, filenames, fnames_to_class_ids, output_dir):
     dataset_dir: The directory where the converted datasets are stored.
   """
   num_per_shard = int(math.ceil(len(filenames) / float(_NUM_SHARDS)))
+
+  imagename_file = open(
+          os.path.join(output_dir, 'image_names-%s.txt' % split_name), 'w')
 
   with tf.Graph().as_default():
     with tf.Session('') as sess:
@@ -81,12 +93,17 @@ def convert_dataset(split_name, filenames, fnames_to_class_ids, output_dir):
             #image_data = tf.gfile.FastGFile(filenames[i], 'r').read()
             #height, width = image_reader.read_image_dims(sess, image_data)
 
-            image_name = filenames[i].split('.')[0]
-            class_ids = fnames_to_class_ids[os.path.basename(image_name)]
+            image_name = os.path.basename(filenames[i].split('.')[0])
+            if fnames_to_class_ids is None:
+                class_ids = []
+            else:
+                class_ids = fnames_to_class_ids[image_name]
 
-            example = dataset_utils.image_to_tfexample(
-                image_data.tostring(), 'raw', height, width, class_ids)
+            example = image_to_tfexample(
+                image_data.tostring(), 'raw', height, width, class_ids, image_name)
             tfrecord_writer.write(example.SerializeToString())
+            imagename_file.write('%s\n' % image_name)
+  imagename_file.close()
 
   sys.stdout.write('\n')
   sys.stdout.flush()
@@ -108,12 +125,15 @@ def run(dataset_dir):
     random.shuffle(photo_filenames)
     training_filenames = photo_filenames[_NUM_VALIDATION:]
     validation_filenames = photo_filenames[:_NUM_VALIDATION]
+    test_filenames = get_filenames(dataset_dir, jpg_or_tiff='jpg',
+            test_or_train='test')
 
     fnames_to_class_ids = {}
     for fname, tags in zip(labels_csv.image_name, labels_csv.tags):
         fnames_to_class_ids[fname] = [
                 class_names_to_ids[i] for i in tags.split()]
 
+    convert_dataset('test', test_filenames, None, output_dir)
     convert_dataset('train', training_filenames, fnames_to_class_ids,
             output_dir)
     convert_dataset('validation', validation_filenames, fnames_to_class_ids,

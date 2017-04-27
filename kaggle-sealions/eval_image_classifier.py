@@ -115,7 +115,8 @@ def main(_):
         shuffle=False,
         common_queue_capacity=2 * FLAGS.batch_size,
         common_queue_min=FLAGS.batch_size)
-    [image, label] = provider.get(['image', 'label'])
+    [image, label, image_name] = provider.get(['image', 'label', 'name'])
+    print(image, label, image_name)
     label -= FLAGS.labels_offset
 
     #####################################
@@ -133,16 +134,18 @@ def main(_):
     labels = slim.one_hot_encoding(
         label, dataset.num_classes - FLAGS.labels_offset)
     labels = tf.reduce_sum(labels, axis=0)
-    images, labels = tf.train.batch(
-        [image, labels],
+    images, labels, image_names = tf.train.batch(
+        [image, labels, image_name],
         batch_size=FLAGS.batch_size,
         num_threads=FLAGS.num_preprocessing_threads,
         capacity=5 * FLAGS.batch_size)
 
+    print(images, labels)
     ####################
     # Define the model #
     ####################
     logits, _ = network_fn(images)
+    print(logits)
 
     if FLAGS.moving_average_decay:
       variable_averages = tf.train.ExponentialMovingAverage(
@@ -153,7 +156,6 @@ def main(_):
     else:
       variables_to_restore = slim.get_variables_to_restore()
 
-    #predictions = tf.argmax(logits, 1)
     predictions = tf.greater(logits, .7)
     labels = tf.cast(labels, tf.bool)
     
@@ -192,13 +194,55 @@ def main(_):
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
 
-    slim.evaluation.evaluate_once(
-        master=FLAGS.master,
-        checkpoint_path=checkpoint_path,
-        logdir=FLAGS.eval_dir,
-        num_evals=num_batches,
-        eval_op=list(names_to_updates.values()),
-        variables_to_restore=variables_to_restore)
+    init = tf.global_variables_initializer()
+    from tensorflow.python.training import saver as tf_saver
+    saver = tf_saver.Saver(variables_to_restore)
+    all_logits = []
+    all_labels = []
+    all_names = []
+    try:
+        with tf.Session() as sess:
+            sess.run(init)
+            saver.restore(sess, checkpoint_path)
+
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+            print('RUNNING')
+            i = 0
+            while not coord.should_stop():
+                print(i)
+                logits_val, labels_val, name_val = sess.run(
+                        [logits, labels, image_names])
+                all_logits.append(logits_val)
+                all_labels.append(labels_val)
+                all_names.append(name_val)
+                i += 1
+                if i == num_batches:
+                    break
+    except tf.errors.OutOfRangeError:
+        print ('Done')
+    finally:
+        coord.request_stop()
+
+    import numpy as np
+    all_logits = np.concatenate(all_logits)
+    all_labels = np.concatenate(all_labels)
+    all_names = np.concatenate(all_names)
+
+    np.savez('%s.%s' % (checkpoint_path, '%s-val.npz' % FLAGS.dataset_split_name),
+            logits=all_logits, labels=all_labels, names=all_names)
+    
+    coord.join(threads)
+    sess.close()
+
+    #slim.evaluation.evaluate_once(
+    #    master=FLAGS.master,
+    #    checkpoint_path=checkpoint_path,
+    #    logdir=FLAGS.eval_dir,
+    #    num_evals=num_batches,
+    #    eval_op=list(names_to_updates.values()),
+    #    variables_to_restore=variables_to_restore)
 
 
 if __name__ == '__main__':
